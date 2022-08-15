@@ -1,0 +1,5 @@
+tensorflow-gpu==2.5.0
+cython==0.29.24
+matplotlib
+tqdm
+sklearn==1.0.1

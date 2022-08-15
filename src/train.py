@@ -4,9 +4,9 @@ import time
 import os
 import numpy as np
 import logging
+import pdb
 from dataPrepare import *
 from utils import *
-import pdb
 
 def trainIndex(lookups_loc, train_data_loc, datasetName, model_save_loc, batch_size, B, vec_dim, hidden_dim, logfile,
                     r, gpu, gpu_usage, load_epoch, k2, n_epochs):
