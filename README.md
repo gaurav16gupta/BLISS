@@ -37,7 +37,7 @@ We'd love to accept your contributions to this project. Please feel free to open
 The code is build upon [Tharun24/MACH](https://github.com/Tharun24/MACH)
 
 ## Citation
-If you found the provided code useful, please cite our work with the following bibtex.
+If you find the provided code useful, please cite our work with the following bibtex.
 
 ```bibtex
 @inproceedings{10.1145/3534678.3539414,
