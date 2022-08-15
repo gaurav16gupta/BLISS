@@ -1,137 +1,115 @@
-from config import train_config as config
-from multiprocessing import Pool
-from sklearn.utils import murmurhash3_32 as mmh3
+
 import tensorflow as tf
-import glob
 import time
 import numpy as np
-import tensorflow as tf
-
-def create_universal_lookups(r):
-    counts = np.zeros(config.B+1, dtype=int)
-    bucket_order = np.zeros(config.n_classes, dtype=int)
-    #
-    for i in range(config.n_classes):
-        bucket = mmh3(i,seed=r)%config.B
-        bucket_order[i] = bucket
-        counts[bucket+1] += 1
-    #
-    counts = np.cumsum(counts)
-    rolling_counts = np.zeros(config.B, dtype=int)
-    class_order = np.zeros(config.n_classes,dtype=int)
-    for i in range(config.n_classes):
-        temp = bucket_order[i]
-        class_order[counts[temp]+rolling_counts[temp]] = i
-        rolling_counts[temp] += 1
-    np.save(config.lookups_loc+'class_order_'+str(r)+'.npy', class_order)
-    np.save(config.lookups_loc+'counts_'+str(r)+'.npy',counts)
-    np.save(config.lookups_loc+'bucket_order_'+str(r)+'.npy', bucket_order)
-
-def create_query_lookups(r):
-    bucket_order = np.zeros(config.feat_dim_orig, dtype=int)
-    #
-    for i in range(config.feat_dim_orig):
-        bucket = mmh3(i,seed=r)%config.feat_hash_dim
-        bucket_order[i] = bucket
-    np.save(config.query_lookups_loc+'bucket_order_'+str(r)+'.npy', bucket_order)
-
-def input_example(labels, label_vals, inp_idxs, inp_vals): # for writing TFRecords
-    labels_list = tf.train.Int64List(value = labels)
-    label_vals_list = tf.train.FloatList(value = label_vals)
-    inp_idxs_list = tf.train.Int64List(value = inp_idxs)
-    inp_vals_list = tf.train.FloatList(value = inp_vals)
-    # Create a dictionary with above lists individually wrapped in Feature
-    feature = {
-        'labels': tf.train.Feature(int64_list = labels_list),
-        'label_vals': tf.train.Feature(float_list = label_vals_list),
-        'input_idxs': tf.train.Feature(int64_list = inp_idxs_list),
-        'input_vals': tf.train.Feature(float_list = inp_vals_list)
-    }
-    # Create Example object with features
-    example = tf.train.Example(features = tf.train.Features(feature=feature))
-    return example
-
-def create_tfrecords(file):
-    f = open(file, 'r', encoding = 'utf-8')
-    header = f.readline()
-    write_loc = config.tfrecord_loc+file.split('/')[-1].split('.')[0]
-    with tf.python_io.TFRecordWriter(write_loc+'.tfrecords') as writer:
-        for line in f:
-            itms = line.strip().split()
-            y_idxs = [int(itm) for itm in itms[0].split(',')]
-            y_vals = [1.0 for itm in range(len(y_idxs))]
-            x_idxs = [int(itm.split(':')[0]) for itm in itms[1:]]
-            x_vals = [float(itm.split(':')[1]) for itm in itms[1:]]    
-            ############################
-            tf_example = input_example(y_idxs, y_vals, x_idxs, x_vals)
-            writer.write(tf_example.SerializeToString())
+import os, sys
+import pdb
+import math
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+import time
+import numpy as np
+from multiprocessing import Pool
+from sklearn.utils import murmurhash3_32 as mmh3
 
 
-def create_tfrecords_ann(file):
-    f = open(file, 'r', encoding = 'utf-8')
-    # header = f.readline()
-    write_loc = config.tfrecord_loc+file.split('/')[-1].split('.')[0]
-    with tf.python_io.TFRecordWriter(write_loc+'.tfrecords') as writer:
-        for line in f:
-            itms = line.strip().split()
-            y_idxs = [int(itm.split(':')[0]) for itm in itms[0].split(',')]
-            y_vals = [float(itm.split(':')[1]) for itm in itms[0].split(',')]
-            x_idxs = [int(itm.split(':')[0]) for itm in itms[1:]]
-            x_vals = [float(itm.split(':')[1]) for itm in itms[1:]]    
-            ############################
-            tf_example = input_example(y_idxs, y_vals, x_idxs, x_vals)
-            writer.write(tf_example.SerializeToString())
+def savememmap(path, ar):
+    if path[-4:]!='.dat':
+        path = path +'.dat'
+    shape = ar.shape
+    dtype = ar.dtype
+    fp = np.memmap( path, dtype=dtype, mode='w+', shape=(shape))
+    fp[:]= ar[:]
+    fp.flush()
+
+def getTrueNNS(x_train, metric, K):
+    begin_time = time.time()
+    batch_size = 1000
+    output = np.zeros([x_train.shape[0], K], dtype=np.int32) # for upto 2B
+
+    if metric=='IP':
+        W = x_train.T
+        for i in range(x_train.shape[0]//batch_size):
+            start_idx = i*batch_size
+            end_idx = start_idx+batch_size
+            x_batch = x_train[start_idx:end_idx]
+            sim = x_batch@W
+            top_idxs = np.argpartition(sim, -K)[:,-K:]
+            output[start_idx:end_idx] = top_idxs
+
+    elif metric=='L2':
+        W = x_train.T
+        W_norm = np.square(np.linalg.norm(W,axis=0))
+        for i in range(x_train.shape[0]//batch_size):
+            start_idx = i*batch_size
+            end_idx = start_idx+batch_size
+            x_batch = x_train[start_idx:end_idx]
+            sim = 2*x_batch@W - W_norm
+            top_idxs = np.argpartition(sim, -K)[:,-K:]
+            output[start_idx:end_idx] = top_idxs
+
+    elif metric=='cosine':
+        x_train = x_train/(np.linalg.norm(x_train,axis=1)[:,None])
+        W = x_train.T
+        for i in range(x_train.shape[0]//batch_size):
+            # t1 = time.time()
+            start_idx = i*batch_size
+            end_idx = start_idx+batch_size
+            x_batch = x_train[start_idx:end_idx]
+            sim = x_batch@W # tf this
+            top_idxs = np.argpartition(sim, -K)[:,-K:] # use tf.nn.topk It uses mul cores
+            output[start_idx:end_idx] = top_idxs
+            # print (i, ': ', time.time()-t1)
+    print(time.time()-begin_time)
+    return output
 
 
-def label_tfrecords(file):
-    f = open(file, 'r', encoding = 'utf-8')
-    write_loc = config.tfrecord_loc+file.split('/')[-1].split('.')[0]
-    with tf.python_io.TFRecordWriter(write_loc+'.tfrecords') as writer:
-        for line in f:
-            itms = line.strip().split(',')
-            x_idxs = [int(itm) for itm in itms]
-            x_vals = [1.0 for itm in itms]   
-            ############################
-            tf_example = input_example([], [], x_idxs, x_vals)
-            writer.write(tf_example.SerializeToString())
+def create_universal_lookups(r, B, n_classes, lookups_loc):
+    c_o = lookups_loc+'class_order_'+str(r)+'.npy'
+    ct = lookups_loc+'counts_'+str(r)+'.npy'
+    b_o = lookups_loc+'bucket_order_'+str(r)+'.npy'
+    if os.path.exists(c_o) and os.path.exists(ct) and os.path.exists(b_o):
+        print ('init lookups exists')
+    else:
+        counts = np.zeros(B+1, dtype=int)
+        bucket_order = np.zeros(n_classes, dtype=int)
+        for i in range(n_classes):
+            bucket = mmh3(i,seed=r)%B
+            bucket_order[i] = bucket
+            counts[bucket+1] += 1
+        counts = np.cumsum(counts)
+        rolling_counts = np.zeros(B, dtype=int)
+        class_order = np.zeros(n_classes,dtype=int)
+        for i in range(n_classes):
+            temp = bucket_order[i]
+            class_order[counts[temp]+rolling_counts[temp]] = i
+            rolling_counts[temp] += 1
+        
+        np.save(c_o, class_order)
+        np.save(ct,counts)
+        np.save(b_o, bucket_order)
 
-
-def _parse_function(example_proto): # for reading TFRecords
-    features = {"labels": tf.io.VarLenFeature(tf.int64),
-              "label_vals": tf.io.VarLenFeature(tf.float32),
-              "input_idxs": tf.io.VarLenFeature(tf.int64),
-              "input_vals": tf.io.VarLenFeature(tf.float32)
-              }
-    parsed_features = tf.io.parse_single_example(example_proto, features)
-    # labels = tf.io.parse_tensor(parsed_features["labels"], out_type = tf.int64)
-    # label_vals = tf.io.parse_tensor(parsed_features["label_vals"], out_type = tf.float32)
-    # input_idxs = tf.io.parse_tensor(parsed_features["input_idxs"], out_type = tf.int64)
-    # input_vals = tf.io.parse_tensor(parsed_features["input_vals"], out_type = tf.float32)
-    # return labels, label_vals, input_idxs, input_vals
-    return (parsed_features["labels"], parsed_features["label_vals"], parsed_features["input_idxs"], parsed_features["input_vals"])
-    
-
-def _parse_function_dense(example_proto): # for reading TFRecords
-    features = {"labels": tf.VarLenFeature(tf.int64),
-              "label_vals": tf.VarLenFeature(tf.float32),
-              "input_idxs": tf.FixedLenFeature(tf.int64),
-              "input_vals": tf.FixedLenFeature(tf.float32)
-              }
-    parsed_features = tf.parse_single_example(example_proto, features)
-    return parsed_features["labels"], parsed_features["label_vals"], parsed_features["input_idxs"], parsed_features["input_vals"]
-
-def create_tfrecords_dense(file):
-    f = open(file, 'r', encoding = 'utf-8')
-    # header = f.readline()
-    write_loc = config.tfrecord_loc+file.split('/')[-1].split('.')[0]
-    with tf.python_io.TFRecordWriter(write_loc+'.tfrecords') as writer:
-        for line in f:
-            itms = line.strip().split()
-            y_idxs = [int(itm.split(':')[0]) for itm in itms[0].split(',')]
-            y_vals = [float(itm.split(':')[1]) for itm in itms[0].split(',')]
-            x_idxs = [int(itm.split(':')[0]) for itm in itms[1:]]
-            x_vals = [float(itm.split(':')[1]) for itm in itms[1:]]    
-            ############################
-            tf_example = input_example(y_idxs, y_vals, x_idxs, x_vals)
-            writer.write(tf_example.SerializeToString())
-
+# to do: fix this
+def process_scores(inp, ):
+    R = inp.shape[0]
+    topk = inp.shape[2]
+    # scores = {}
+    freqs = {}
+    for r in range(R):
+        for k in range(topk):
+            val = inp[r,0,k] # inp[r,0,k] is values, inp[r,1,k] is the indices
+            for key in inv_lookup[r,counts[r,int(inp[r,1,k])]:counts[r,int(inp[r,1,k])+1]]:
+                if key in freqs:
+                    # scores[key] += val
+                    freqs[key] += 1  
+                else:
+                    # scores[key] = val
+                    freqs[key] = 1
+    i = 0
+    while True:
+        candidates = np.array([key for key in freqs if freqs[key]>=args.mf-i])
+        if len(candidates)>=10:
+            break
+        i += 1
+    return candidates
+    ###

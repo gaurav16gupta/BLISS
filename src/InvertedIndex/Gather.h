@@ -1,9 +1,12 @@
+// void cgather_batch(long*, long*, long*, long*, long*, double*, int, int, int, int, int);
+// void cgather_K(float*, long*, float*, long*, int, int, int, int, int);
+ 
 
 #include <vector>
 
 class FastIV {
 public:
-    int Parts_, R_, B_, threshold, topk_, node_;
+    int R_, B_, threshold, topk_;
     int block_;
     int* inv_lookup_;
     int* counts_;
@@ -11,7 +14,7 @@ public:
     uint8_t* counter; 
     // std::vector<int>* InvIndex;
 
-    FastIV(int Parts, int R, int block, int B, int mf, int topk, int node, int* inv_lookup, int* counts);
+    FastIV(int R, int block, int B, int mf, int topk, int* inv_lookup, int* counts);
     // void createIndex(int i, long* list, int L);
     void FC(int* top_buckets_, int maxsize, int* candidates, int* candSize);
 };
