@@ -10,7 +10,8 @@ to billions of vectors. It iteratively refines partitions of items by learning t
 
 ## Prerequisites
 ```
-$ pip install -r requirements.txt
+pip install -r requirements.txt
+cd InvertedIndex && make
 ```
 
 ### Download Datasets
@@ -30,15 +31,15 @@ Update the BLISS/src/config.py DATASET dictionary after adding any new dataset.
 ## Run
 * Train the iterative model
 ```
-$ python3 construct.py --index='glove_epc20_K2_B4096_R4'
+python3 construct.py --index='glove_epc20_K2_B4096_R4'
 ```
 * Index on the trained model
 ```
-$ python3 index.py --index='glove_epc20_K2_B4096_R4'
+python3 index.py --index='glove_epc20_K2_B4096_R4'
 ```
 * Query the index
 ```
-$ python3 query.py --index='glove_epc20_K2_B4096_R4' --topm=50
+python3 query.py --index='glove_epc20_K2_B4096_R4' --topm=50
 ```
 
 
