@@ -1,3 +1,5 @@
 # Ignored folders
 logs/
-indices/glove
+!logs/.temp 
+indices
+!logs/.temp 
