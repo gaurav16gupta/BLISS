@@ -1,7 +1,5 @@
 # BLISS: A Billion scale Index using Iterative Re-partitioning
 
-
-ThirdAI Corp., Texas, USA
 **Authors**: [Gaurav Gupta](https://gaurav16gupta.github.io/), [Tharun Medini](https://tharun24.github.io/), [Anshumali Shrivastava](https://www.cs.rice.edu/~as143/), [Alexander J. Smola](https://alex.smola.org/)
 
 ## Abstract
