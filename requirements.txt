@@ -1,4 +1,4 @@
-tensorflow-gpu==2.5.0
+tensorflow-gpu>=2.7.1
 cython==0.29.24
 matplotlib
 tqdm
