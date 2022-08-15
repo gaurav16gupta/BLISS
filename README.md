@@ -60,13 +60,7 @@ series = {KDD '22}
 
 ### Requirements: tensorflow 2.4
 
-
-
-Get datasets from
-
-https://big-ann-benchmarks.com/index.html#call
-
-https://github.com/erikbern/ann-benchmarks
-
-http://manikvarma.org/downloads/XC/XMLRepository.html
+### Datasets
+The GloVe and SIFT datasets came from [ann-benchmarks](https://github.com/erikbern/ann-benchmarks/". The Billion scale data came from [big-ann-benchmarks](https://big-ann-benchmarks.com/index.html#call). The datasets for extreme classification can be downloaded from the [XMLRepository](http://manikvarma.org/code/Slice/download.html
+) 
 
