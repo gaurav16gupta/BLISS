@@ -18,7 +18,7 @@ Create a directory named "data" outside the BLISS repo. Create a sperate directo
 For example download the GloVe data:
 ```
 cd data
-mkdir glove
+mkdir glove && cd glove
 wget http://ann-benchmarks.com/glove-100-angular.hdf5
 ```
 The chosen dataset folder names should match with the BLISS/src/config.py file.
