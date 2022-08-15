@@ -1,5 +1,5 @@
 # Ignored folders
 logs/
-!logs/.temp 
+!logs/temp 
 indices
-!logs/.temp 
+!logs/temp 
