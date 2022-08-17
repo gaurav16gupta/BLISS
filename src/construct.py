@@ -6,7 +6,6 @@ import pdb
 import argparse
 from utils import *
 from train import trainIndex
-from index import Index
 from config import config
 
 parser = argparse.ArgumentParser()
