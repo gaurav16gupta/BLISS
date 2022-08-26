@@ -11,13 +11,12 @@ from utils import *
 def trainIndex(lookups_loc, train_data_loc, datasetName, model_save_loc, batch_size, B, vec_dim, hidden_dim, logfile,
                     r, gpu, gpu_usage, load_epoch, k2, n_epochs):
 
-    tf.compat.v1.disable_eager_execution()
-
-    if not gpu=='all':
-        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
-    # get train data
     getTraindata(datasetName) # check if already there, check if it return correct ground truth
+
+    tf.compat.v1.disable_eager_execution()
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    # get train data
+    
     x_train = np.load(train_data_loc+'train.npy')
     y_train = np.load(train_data_loc+'groundTruth.npy')
     N = x_train.shape[0]
@@ -105,7 +104,7 @@ def trainIndex(lookups_loc, train_data_loc, datasetName, model_save_loc, batch_s
             try:
                 sess.run(train_op, feed_dict={x:x_train[start_idx:end_idx], _y:y_train[start_idx:end_idx].reshape([-1])})
             except:
-                pdb.set_trace()
+                pdb.set_trace() # to handle this exception
             count += 1
             if count%n_check==0:
                 _, train_loss = sess.run([train_op, loss], feed_dict={x:x_train[start_idx:end_idx], _y:y_train[start_idx:end_idx].reshape([-1])})

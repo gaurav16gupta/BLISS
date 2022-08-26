@@ -23,43 +23,60 @@ def savememmap(path, ar):
     fp.flush()
 
 def getTrueNNS(x_train, metric, K):
+    os.environ['CUDA_VISIBLE_DEVICES'] = 'cpu'
     begin_time = time.time()
     batch_size = 1000
     output = np.zeros([x_train.shape[0], K], dtype=np.int32) # for upto 2B
 
     if metric=='IP':
         W = x_train.T
+        W = tf.constant(W)
         for i in range(x_train.shape[0]//batch_size):
             start_idx = i*batch_size
             end_idx = start_idx+batch_size
             x_batch = x_train[start_idx:end_idx]
-            sim = x_batch@W
-            top_idxs = np.argpartition(sim, -K)[:,-K:]
+            # sim = x_batch@W
+            sim = tf.matmul(x_batch,W)
+            # top_idxs = np.argpartition(sim, -K)[:,-K:]
+            top_idxs = tf.nn.top_k(sim, k=K, sorted=False)[1]
             output[start_idx:end_idx] = top_idxs
 
     elif metric=='L2':
         W = x_train.T
         W_norm = np.square(np.linalg.norm(W,axis=0))
+        W = tf.constant(W)
         for i in range(x_train.shape[0]//batch_size):
             start_idx = i*batch_size
             end_idx = start_idx+batch_size
             x_batch = x_train[start_idx:end_idx]
-            sim = 2*x_batch@W - W_norm
-            top_idxs = np.argpartition(sim, -K)[:,-K:]
+            # sim = 2*x_batch@W - W_norm
+            sim = 2*tf.matmul(x_batch,W)- W_norm
+            # top_idxs = np.argpartition(sim, -K)[:,-K:]
+            top_idxs = tf.nn.top_k(sim, k=K, sorted=False)[1]
             output[start_idx:end_idx] = top_idxs
 
-    elif metric=='cosine':
+    # elif metric=='cosine':
+    #     x_train = x_train/(np.linalg.norm(x_train,axis=1)[:,None])
+    #     W = x_train.T
+    #     for i in range(x_train.shape[0]//batch_size):
+    #         start_idx = i*batch_size
+    #         end_idx = start_idx+batch_size
+    #         x_batch = x_train[start_idx:end_idx]
+    #         sim = x_batch@W # tf this
+    #         top_idxs = np.argpartition(sim, -K)[:,-K:] # use tf.nn.topk It uses mul cores
+    #         output[start_idx:end_idx] = top_idxs
+    
+    elif metric=='cosine': #todo
         x_train = x_train/(np.linalg.norm(x_train,axis=1)[:,None])
-        W = x_train.T
+        W = tf.constant(x_train.T)
         for i in range(x_train.shape[0]//batch_size):
-            # t1 = time.time()
             start_idx = i*batch_size
             end_idx = start_idx+batch_size
             x_batch = x_train[start_idx:end_idx]
-            sim = x_batch@W # tf this
-            top_idxs = np.argpartition(sim, -K)[:,-K:] # use tf.nn.topk It uses mul cores
+            sim = tf.matmul(x_batch,W)
+            top_idxs = tf.nn.top_k(sim, k=K, sorted=False)[1]
             output[start_idx:end_idx] = top_idxs
-            # print (i, ': ', time.time()-t1)
+
     print(time.time()-begin_time)
     return output
 

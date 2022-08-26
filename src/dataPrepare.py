@@ -19,6 +19,7 @@ def getTraindata(dataname):
         N = fulldata.shape[0]
         if N>10**6:
             # pick = np.random.choice(N, np.clip(N//100, 10**4, 10**6), replace=False) # fix seed
+            np.random.seed(0)
             pick = np.random.choice(N, 10**6, replace=False) # fix seed
             data_train = fulldata[pick,:]
         else:
