@@ -9,9 +9,10 @@ to billions of vectors. It iteratively refines partitions of items by learning t
 (XML problem). For the case of ANN, we train and index 4 datasets with billion vectors each. We compare the recall, inference time, indexing time, and index size for BLISS with the two most popular and well-optimized libraries- Hierarchical Navigable Small World (HNSW) graph and Facebook’s FAISS. BLISS requires 100× lesser RAM than HNSW, making it fit in memory on commodity machines while taking a similar inference time as HNSW for the same recall. Against FAISS-IVF, BLISS achieves similar performance with 3-4× less memory requirement. BLISS is both data and model parallel, making it ideal for distributed implementation for training and inference. For the case of XML, BLISS surpasses the best baselines’ precision while being 5× faster for inference on popular multi-label datasets with half a million classes.
 
 ## Prerequisites
+Compiler: gcc and g++
 ```
 pip install -r requirements.txt
-cd InvertedIndex && make
+cd src/InvertedIndex && make
 ```
 
 ### Download Datasets
