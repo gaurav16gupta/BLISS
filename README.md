@@ -1,4 +1,4 @@
-# BLISS: A Billion scale Index using Iterative Re-partitioning
+# [BLISS: A Billion scale Index using Iterative Re-partitioning](https://dl.acm.org/doi/abs/10.1145/3534678.3539414)
 
 **Authors**: [Gaurav Gupta](https://gaurav16gupta.github.io/), [Tharun Medini](https://tharun24.github.io/), [Anshumali Shrivastava](https://www.cs.rice.edu/~as143/), [Alexander J. Smola](https://alex.smola.org/)
 
