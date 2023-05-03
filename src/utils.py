@@ -11,7 +11,7 @@ import time
 import numpy as np
 from multiprocessing import Pool
 from sklearn.utils import murmurhash3_32 as mmh3
-
+from sklearn.cluster import KMeans
 
 def savememmap(path, ar):
     if path[-4:]!='.dat':
@@ -23,7 +23,7 @@ def savememmap(path, ar):
     fp.flush()
 
 def getTrueNNS(x_train, metric, K):
-    os.environ['CUDA_VISIBLE_DEVICES'] = 'cpu'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '2'
     begin_time = time.time()
     batch_size = 1000
     output = np.zeros([x_train.shape[0], K], dtype=np.int32) # for upto 2B
@@ -31,55 +31,81 @@ def getTrueNNS(x_train, metric, K):
     if metric=='IP':
         W = x_train.T
         W = tf.constant(W)
-        for i in range(x_train.shape[0]//batch_size):
+        for i in tqdm(range(x_train.shape[0]//batch_size)):
             start_idx = i*batch_size
             end_idx = start_idx+batch_size
             x_batch = x_train[start_idx:end_idx]
             # sim = x_batch@W
             sim = tf.matmul(x_batch,W)
             # top_idxs = np.argpartition(sim, -K)[:,-K:]
-            top_idxs = tf.nn.top_k(sim, k=K, sorted=False)[1]
+            top_idxs = tf.nn.top_k(sim, k=K, sorted=True)[1]
             output[start_idx:end_idx] = top_idxs
 
     elif metric=='L2':
         W = x_train.T
         W_norm = np.square(np.linalg.norm(W,axis=0))
         W = tf.constant(W)
-        for i in range(x_train.shape[0]//batch_size):
+        for i in tqdm(range(x_train.shape[0]//batch_size)):
             start_idx = i*batch_size
             end_idx = start_idx+batch_size
             x_batch = x_train[start_idx:end_idx]
             # sim = 2*x_batch@W - W_norm
             sim = 2*tf.matmul(x_batch,W)- W_norm
             # top_idxs = np.argpartition(sim, -K)[:,-K:]
-            top_idxs = tf.nn.top_k(sim, k=K, sorted=False)[1]
+            top_idxs = tf.nn.top_k(sim, k=K, sorted=True)[1]
             output[start_idx:end_idx] = top_idxs
-
-    # elif metric=='cosine':
-    #     x_train = x_train/(np.linalg.norm(x_train,axis=1)[:,None])
-    #     W = x_train.T
-    #     for i in range(x_train.shape[0]//batch_size):
-    #         start_idx = i*batch_size
-    #         end_idx = start_idx+batch_size
-    #         x_batch = x_train[start_idx:end_idx]
-    #         sim = x_batch@W # tf this
-    #         top_idxs = np.argpartition(sim, -K)[:,-K:] # use tf.nn.topk It uses mul cores
-    #         output[start_idx:end_idx] = top_idxs
     
-    elif metric=='cosine': #todo
+    elif metric=='cosine': 
         x_train = x_train/(np.linalg.norm(x_train,axis=1)[:,None])
         W = tf.constant(x_train.T)
-        for i in range(x_train.shape[0]//batch_size):
+        for i in tqdm(range(x_train.shape[0]//batch_size)):
             start_idx = i*batch_size
             end_idx = start_idx+batch_size
             x_batch = x_train[start_idx:end_idx]
             sim = tf.matmul(x_batch,W)
-            top_idxs = tf.nn.top_k(sim, k=K, sorted=False)[1]
+            top_idxs = tf.nn.top_k(sim, k=K, sorted=True)[1]
             output[start_idx:end_idx] = top_idxs
 
     print(time.time()-begin_time)
     return output
 
+def randomPoints_lookups(r, B, N, data, lookups_loc):
+    c_o = lookups_loc+'class_order_'+str(r)+'.npy'
+    ct = lookups_loc+'counts_'+str(r)+'.npy'
+    b_o = lookups_loc+'bucket_order_'+str(r)+'.npy'
+    if os.path.exists(c_o) and os.path.exists(ct) and os.path.exists(b_o):
+        print ('init lookups exists')
+    else:
+        rind = np.arange(0, B)
+        np.random.shuffle(rind)
+        cents = data[rind,:]
+        cents = cents.T
+        scores = data @ cents
+        bucket_order = np.argmin(scores, axis=1)
+        class_order = np.argsort(bucket_order)
+        counts = np.zeros(B+1, dtype=int)
+        for i in range(N):
+            counts[bucket_order[i]+1] += 1
+        np.save(c_o, np.array(class_order))
+        np.save(ct,np.array(counts))
+        np.save(b_o, np.array(bucket_order))
+
+def kmeans_lookups(r, B, N, data, lookups_loc):
+    c_o = lookups_loc+'class_order_'+str(r)+'.npy'
+    ct = lookups_loc+'counts_'+str(r)+'.npy'
+    b_o = lookups_loc+'bucket_order_'+str(r)+'.npy'
+    if os.path.exists(c_o) and os.path.exists(ct) and os.path.exists(b_o):
+        print ('init lookups exists')
+    else:
+        kmeans = KMeans(n_clusters=B, random_state=r).fit(data)
+        counts = np.zeros(B+1, dtype=int)
+        bucket_order = kmeans.labels_
+        class_order = np.argsort(bucket_order)
+        for i in range(N):
+            counts[bucket_order[i]+1] += 1
+        np.save(c_o, class_order)
+        np.save(ct,counts)
+        np.save(b_o, bucket_order)
 
 def create_universal_lookups(r, B, n_classes, lookups_loc):
     c_o = lookups_loc+'class_order_'+str(r)+'.npy'
@@ -101,7 +127,6 @@ def create_universal_lookups(r, B, n_classes, lookups_loc):
             temp = bucket_order[i]
             class_order[counts[temp]+rolling_counts[temp]] = i
             rolling_counts[temp] += 1
-        
         np.save(c_o, class_order)
         np.save(ct,counts)
         np.save(b_o, bucket_order)

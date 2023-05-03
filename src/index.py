@@ -34,11 +34,11 @@ def Index(B,R,datasetName, load_epoch, K):
     # N = n_classes
 
     Model = MyModule(R)
-    Model.load([model_save_loc+'/r_'+str(r)+'_epoch_'+str(load_epoch)+'.npz' for r in range(R)]) # node 0 for all
+    Model.load([model_save_loc+'/r_'+str(r)+'.npz' for r in range(R)]) # node 0 for all
     print ("model loaded")
     # print (lookups_loc+'epoch_'+str(load_epoch))
 
-    datapath = train_data_loc + '/fulldata.dat'
+    datapath = train_data_loc 
     dataset = tf.data.Dataset.from_tensor_slices(getFulldata(datasetName, datapath).astype(np.float32))
     dataset = dataset.batch(batch_size = batch_size)
     iterator = iter(dataset)

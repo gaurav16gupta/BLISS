@@ -9,30 +9,35 @@ from dataPrepare import *
 from utils import *
 
 def trainIndex(lookups_loc, train_data_loc, datasetName, model_save_loc, batch_size, B, vec_dim, hidden_dim, logfile,
-                    r, gpu, gpu_usage, load_epoch, k2, n_epochs):
+                    r, gpu, gpu_usage, load_epoch, k2, n_epochs, kn):
 
     getTraindata(datasetName) # check if already there, check if it return correct ground truth
 
     tf.compat.v1.disable_eager_execution()
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '2'
     # get train data
     
     x_train = np.load(train_data_loc+'train.npy')
     y_train = np.load(train_data_loc+'groundTruth.npy')
+    # kn=10
+    y_train = y_train[:,:kn]    
+
     N = x_train.shape[0]
     if not os.path.exists(lookups_loc+'epoch_'+str(load_epoch)+'/'):  
         os.makedirs(lookups_loc+'epoch_'+str(load_epoch)+'/')
-    create_universal_lookups(r, B, N, lookups_loc+'epoch_'+str(load_epoch)+'/')
+    # create_universal_lookups(r, B, N, lookups_loc+'epoch_'+str(load_epoch)+'/')
+    # datapath = train_data_loc + '/fulldata.dat'
+    # fulldata = getFulldata(datasetName, datapath).astype(np.float32)
+    randomPoints_lookups(r, B, N, x_train, lookups_loc+'epoch_'+str(load_epoch)+'/')
 
     if load_epoch==0:
         lookup = tf.Variable(np.load(lookups_loc+'epoch_'+str(load_epoch)+'/bucket_order_'+str(r)+'.npy')[:N])
     else:
         lookup = tf.Variable(np.load(lookups_loc+'epoch_'+str(load_epoch)+'/bucket_order_'+str(r)+'.npy')[:N])
 
-    temp = tf.constant(np.arange(batch_size*100)//100)
-
+    temp = tf.constant(np.arange(batch_size*kn)//kn)
     x = tf.compat.v1.placeholder(tf.float32, shape=[batch_size, vec_dim])
-    _y = tf.compat.v1.placeholder(tf.int64, shape=[batch_size*100])
+    _y = tf.compat.v1.placeholder(tf.int64, shape=[batch_size*kn])
     y_idxs = tf.stack([temp, tf.gather(lookup, _y)], axis=-1)
     y_vals = tf.ones_like(y_idxs[:,0], dtype=tf.float32)
     y = tf.compat.v1.SparseTensor(y_idxs, y_vals, [batch_size, B])
@@ -57,9 +62,7 @@ def trainIndex(lookups_loc, train_data_loc, datasetName, model_save_loc, batch_s
     else:
         W1 = tf.Variable(tf.compat.v1.truncated_normal([vec_dim, hidden_dim], stddev=0.05, dtype=tf.float32))
         b1 = tf.Variable(tf.compat.v1.truncated_normal([hidden_dim], stddev=0.05, dtype=tf.float32))
-        # hidden_layer = tf.nn.relu(tf.sparse_tensor_dense_matmul(x,W1)+b1)
         hidden_layer = tf.nn.relu(tf.matmul(x,W1)+b1)
-        #
         W2 = tf.Variable(tf.compat.v1.truncated_normal([hidden_dim, B], stddev=0.05, dtype=tf.float32))
         b2 = tf.Variable(tf.compat.v1.truncated_normal([B], stddev=0.05, dtype=tf.float32))
         logits = tf.matmul(hidden_layer,W2)+b2
@@ -90,44 +93,37 @@ def trainIndex(lookups_loc, train_data_loc, datasetName, model_save_loc, batch_s
     total_time = 0
     logging.basicConfig(filename = logfile+'/logs_'+str(r), level=logging.INFO)
     n_check=1000
-
-
     n_steps_per_epoch = N//batch_size
-
+    prevLoss = 100
     for curr_epoch in range(load_epoch+1,load_epoch+n_epochs+1):
         count = 0
-        
         for j in range(n_steps_per_epoch):
             start_idx = j*batch_size
             end_idx = start_idx+batch_size
             # pdb.set_trace()
-            try:
-                sess.run(train_op, feed_dict={x:x_train[start_idx:end_idx], _y:y_train[start_idx:end_idx].reshape([-1])})
-            except:
-                pdb.set_trace() # to handle this exception
-            count += 1
-            if count%n_check==0:
-                _, train_loss = sess.run([train_op, loss], feed_dict={x:x_train[start_idx:end_idx], _y:y_train[start_idx:end_idx].reshape([-1])})
-                time_diff = time.time()-begin_time
-                total_time += time_diff
-                logging.info('finished '+str(count)+' steps. Time elapsed for last '+str(n_check)+' steps: '+str(time_diff)+' s')
-                logging.info('train_loss: '+str(train_loss))
-                begin_time = time.time()
-                count+=1
+            sess.run(train_op, feed_dict={x:x_train[start_idx:end_idx], _y:y_train[start_idx:end_idx].reshape([-1])})
+           
         ############################################
         logging.info('###################################')
         logging.info('finished epoch '+str(curr_epoch))
         logging.info('total time elapsed so far: '+str(total_time))
         logging.info('###################################')
         if curr_epoch%5==0:
-            params = sess.run([W1,b1,W2,b2])
-            np.savez_compressed(model_save_loc+'/r_'+str(r)+'_epoch_'+str(curr_epoch)+'.npz',
-                W1=params[0], 
-                b1=params[1], 
-                W2=params[2], 
-                b2=params[3])
-            del params
-            #######################################
+            ############################################
+            train_loss = sess.run(loss, feed_dict={x:x_train[start_idx:end_idx], _y:y_train[start_idx:end_idx].reshape([-1])})
+            print ("Train loss ", train_loss)
+            # params = sess.run([W1,b1,W2,b2])
+            # if prevLoss > train_loss:
+            #     prevLoss = train_loss
+                
+            #     if os.path.isfile(model_save_loc+'/r_'+str(r)+'.npz'):
+            #         os.remove(model_save_loc+'/r_'+str(r)+'.npz')
+            #     np.savez_compressed(model_save_loc+'/r_'+str(r)+'.npz',
+            #         W1=params[0], 
+            #         b1=params[1], 
+            #         W2=params[2], 
+            #         b2=params[3])
+            ############################################
             begin_time = time.time()
             
             top_preds = np.zeros([N,k2], dtype=int)
@@ -135,36 +131,44 @@ def trainIndex(lookups_loc, train_data_loc, datasetName, model_save_loc, batch_s
             for i in range(x_train.shape[0]//batch_size):
                 top_preds[start_idx:start_idx+batch_size] = sess.run(top_buckets, feed_dict={x:x_train[start_idx:start_idx+batch_size]})
                 start_idx += batch_size
-            ##
-            # top_preds[start_idx:] = sess.run(top_buckets, feed_dict={x:x_train[start_idx:]})
-            ##
-            print(time.time()-begin_time)
-            ##################################### 
+        
             counts = np.zeros(B+1, dtype=int)
             bucket_order = np.zeros(N, dtype=int)
             for i in range(N):
-                bucket = top_preds[i, np.argmin(counts[top_preds[i]+1])] 
+                bucket = (top_preds[i, counts[top_preds[i]+1] == np.min(counts[top_preds[i]+1])])[0]
+                # bucket = top_preds[i, np.argmin(counts[top_preds[i]+1])] 
                 bucket_order[i] = bucket
                 counts[bucket+1] += 1
-            ###
+
+            # ## check for empty ones
+            # try:
+            #     cst = np.argsort(counts)
+            #     nsplit = sum(counts>2*N/B)-1
+            #     print (sum(counts==0))
+            #     for i in range(nsplit):
+            #         if counts[cst[i]]==0:
+            #             params[2][:,cst[i]] = params[2][:,cst[B-i]]*(1+1/1024) 
+            #             params[2][:,cst[B-i]] = params[2][:,cst[B-i]]*(1-1/1024) 
+            #     nothing = sess.run(tf.compat.v1.assign(W2, params[2]))
+            # except:
+            #     pdb.set_trace()
+            ##
+            # pdb.set_trace()
             nothing = sess.run(tf.compat.v1.assign(lookup,bucket_order))
             ###
+            # print (np.sort(counts)[::-1][:50])
+            print ("empty bins: ", np.sum(counts==0))
+            print ("load Std: ", np.std(counts))
             counts = np.cumsum(counts)
-            rolling_counts = np.zeros(B, dtype=int)
-            class_order = np.zeros(N,dtype=int)
-            for i in range(N):
-                temp = bucket_order[i]
-                class_order[counts[temp]+rolling_counts[temp]] = i
-                rolling_counts[temp] += 1
-            
-            ###
-            # folder_path = lookups_loc+'epoch_'+str(curr_epoch)
-            # if not os.path.isdir(folder_path):
-            #     os.makedirs(folder_path)
-            # np.save(folder_path+'/class_order_'+str(r)+'.npy', class_order)
-            # np.save(folder_path+'/counts_'+str(r)+'.npy', counts)
-            # np.save(folder_path+'/bucket_order_'+str(r)+'.npy', bucket_order)
+            class_order = np.argsort(bucket_order)
             ################
             begin_time = time.time()
 
+    params = sess.run([W1,b1,W2,b2])
+    np.savez_compressed(model_save_loc+'/r_'+str(r)+'.npz',
+    W1=params[0], 
+    b1=params[1], 
+    W2=params[2], 
+    b2=params[3])
+    del params
 

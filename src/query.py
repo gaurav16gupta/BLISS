@@ -46,7 +46,7 @@ if not args.gpu=='all':
 
 ############################## load lookups ################################
 Model = MyModule(R)
-Model.load([model_loc+'/r_'+str(r)+'_epoch_'+str(eval_epoch)+'.npz' for r in range(R)])
+Model.load([model_loc+'/r_'+str(r)+'.npz' for r in range(R)])
 print ("model loaded")
 
 inv_lookup = np.zeros(R*N, dtype=np.int32)
@@ -70,8 +70,7 @@ queries = queries.batch(batch_size = batch_size)
 iterator = iter(queries)
 
 if args.rerank:
-    datapath = data_loc +'fulldata.dat'
-    dataset = getFulldata(datasetName, datapath)
+    dataset = getFulldata(datasetName, data_loc)
     if metric=="L2":
         norms= np.load(data_loc +"norms.npy")
     if metric =="cosine":
@@ -133,24 +132,24 @@ while True:
         t3 = time.time()
         RetRank+= t3-t2
         bthN+=1
-        print (bthN)
+        # print (bthN)
     except:
         # print (bthN)
         print ( " topm: ", args.topm, " mf: ", args.mf)
-        print('overall Recall for',count,'points:',score_sum[0]/((bthN-1)*batch_size + i))
-        print('Avg can. size for',count,'points:',score_sum[1]/((bthN-1)*batch_size + i))
-        pdb.set_trace()
-        print('Inf per point: ',Inf/((bthN-1)*batch_size))
-        print('Ret+rank per point: ',RetRank/((bthN-1)*batch_size))
-        print('per point to report: ',(Inf/32 + RetRank/4)/((bthN-1)*batch_size))
+        print('overall Recall' ,score_sum[0]/((bthN-1)*batch_size + i))
+        print('Avg can. size' ,score_sum[1]/((bthN-1)*batch_size + i))
+        # pdb.set_trace()
+        # print('Inf per point: ',Inf/((bthN-1)*batch_size))
+        # print('Ret+rank per point: ',RetRank/((bthN-1)*batch_size))
+        # print('per point to report: ',(Inf/32 + RetRank/4)/((bthN-1)*batch_size))
 
-        print (" topm: ", args.topm, " mf: ", args.mf, file=fw)
-        print('overall Recall for',count,'points:',score_sum[0]/((bthN-1)*batch_size + i), file=fw)
-        print('Avg can. size for',count,'points:',score_sum[1]/((bthN-1)*batch_size + i), file=fw)
-        print('Inf per point: ',Inf/((bthN-1)*batch_size), file=fw)
-        print('Ret+rank  per point: ',RetRank/((bthN-1)*batch_size), file=fw)
-        print('per point to report: ',(Inf/32 + RetRank/4)/((bthN-1)*batch_size), file=fw)
-        np.save(output_loc,output)
+        # print (" topm: ", args.topm, " mf: ", args.mf, file=fw)
+        # print('overall Recall for',count,'points:',score_sum[0]/((bthN-1)*batch_size + i), file=fw)
+        # print('Avg can. size for',count,'points:',score_sum[1]/((bthN-1)*batch_size + i), file=fw)
+        # print('Inf per point: ',Inf/((bthN-1)*batch_size), file=fw)
+        # print('Ret+rank  per point: ',RetRank/((bthN-1)*batch_size), file=fw)
+        # print('per point to report: ',(Inf/32 + RetRank/4)/((bthN-1)*batch_size), file=fw)
+        # np.save(output_loc,output)
         break
 
 # p.close()

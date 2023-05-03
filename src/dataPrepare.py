@@ -24,7 +24,7 @@ def getTraindata(dataname):
             data_train = fulldata[pick,:]
         else:
             data_train = fulldata
-        
+        # np.random.shuffle(data_train)
         gt = getTrueNNS(data_train, metric, 100)
         np.save(gtpath, gt)
         np.save(trainpath, data_train)

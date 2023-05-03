@@ -12,6 +12,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--index", default='glove_epc20_K2_B4096_R4', type=str)
 parser.add_argument("--gpu", default='0', type=str)
 parser.add_argument("--memmap", default=False, type=bool)
+parser.add_argument("--hdim", default=512, type=int)
+parser.add_argument("--kn", default=10, type=int)
+
 args = parser.parse_args()
 
 datasetName = args.index.split('_')[0]  
@@ -31,7 +34,7 @@ lookups_loc  = "../indices/{}/".format(datasetName)
 train_data_loc = "../../data/{}/".format(datasetName)
 model_save_loc = "../indices/{}/".format(datasetName)
 batch_size = 5000
-hidden_dim = 512
+hidden_dim = args.hdim
 logfile = "../logs/{}/".format(datasetName)
 gpu = 0
 gpu_usage =0.9
@@ -39,7 +42,7 @@ load_epoch = 0
 t1 = time.time()
 for r in range(R):
     trainIndex(lookups_loc, train_data_loc, datasetName, model_save_loc, batch_size, B, feat_dim, hidden_dim, logfile,
-                    r, gpu, gpu_usage, load_epoch, K, n_epochs)
+                    r, gpu, gpu_usage, load_epoch, K, n_epochs, args.kn)
 
 print ("Training finished in: ",time.time()-t1, " sec")
 
